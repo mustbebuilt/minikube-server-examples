@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: influxdb-deployment
+  namespace: hydrosense-iot
+  labels:
+    app.kubernetes.io/name: influxdb
+    app.kubernetes.io/component: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: influxdb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: influxdb
+        app.kubernetes.io/component: database
+    spec:
+      containers:
+        - name: influxdb
+          image: influxdb:2.7
+          ports:
+            - containerPort: 8086
+              name: http
+          env:
+            - name: DOCKER_INFLUXDB_INIT_MODE
+              value: "setup"
+            - name: DOCKER_INFLUXDB_INIT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: influxdb-credentials
+                  key: admin-user
+            - name: DOCKER_INFLUXDB_INIT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: influxdb-credentials
+                  key: admin-password
+            - name: DOCKER_INFLUXDB_INIT_ORG
+              valueFrom:
+                secretKeyRef:
+                  name: influxdb-credentials
+                  key: admin-org
+            - name: DOCKER_INFLUXDB_INIT_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: influxdb-credentials
+                  key: admin-bucket
+            - name: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: influxdb-credentials
+                  key: admin-token
+          volumeMounts:
+            - name: influxdb-storage
+              mountPath: /var/lib/influxdb2
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+      volumes:
+        - name: influxdb-storage
+          persistentVolumeClaim:
+            claimName: influxdb-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: influxdb-service
+  namespace: hydrosense-iot
+  labels:
+    app.kubernetes.io/name: influxdb
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8086
+      targetPort: 8086
+  selector:
+    app.kubernetes.io/name: influxdb

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hydrosense-iot
+  labels:
+    app.kubernetes.io/name: hydrosense-iot
+    app.kubernetes.io/part-of: hydrosense-platform

@@ -1,0 +1,13 @@
+{
+  "name": "hydrosense-mqtt-node-client",
+  "version": "1.0.0",
+  "description": "Headless Node.js IoT Client & Multi-Node Simulator for River Water Quality Monitoring",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "simulate": "node simulate-nodes.js"
+  },
+  "dependencies": {
+    "mqtt": "^5.0.0"
+  }
+}

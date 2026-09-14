@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquitto-deployment
+  namespace: hydrosense-iot
+  labels:
+    app.kubernetes.io/name: mosquitto
+    app.kubernetes.io/component: mqtt-broker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mosquitto
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mosquitto
+        app.kubernetes.io/component: mqtt-broker
+    spec:
+      containers:
+        - name: mosquitto
+          image: eclipse-mosquitto:latest
+          ports:
+            - containerPort: 1883
+              name: mqtt-tcp
+            - containerPort: 9001
+              name: mqtt-ws
+          volumeMounts:
+            - name: mosquitto-config-volume
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+      volumes:
+        - name: mosquitto-config-volume
+          configMap:
+            name: mosquitto-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mosquitto-service
+  namespace: hydrosense-iot
+  labels:
+    app.kubernetes.io/name: mosquitto
+spec:
+  type: NodePort
+  ports:
+    - name: mqtt-tcp
+      port: 1883
+      targetPort: 1883
+      nodePort: 31883
+    - name: mqtt-ws
+      port: 9001
+      targetPort: 9001
+      nodePort: 30901
+  selector:
+    app.kubernetes.io/name: mosquitto

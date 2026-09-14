@@ -1,0 +1,350 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquitto-config
+  namespace: hydrosense-iot
+data:
+  mosquitto.conf: |
+    # Mosquitto MQTT Configuration for Kubernetes / Minikube
+    listener 1883
+    allow_anonymous true
+
+    listener 9001
+    protocol websockets
+    allow_anonymous true
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telegraf-config
+  namespace: hydrosense-iot
+data:
+  telegraf.conf: |
+    # Telegraf Configuration for HydroSense IoT River Monitoring
+    [agent]
+      interval = "5s"
+      round_interval = true
+      metric_batch_size = 1000
+      metric_buffer_limit = 10000
+      collection_jitter = "0s"
+      flush_interval = "5s"
+      flush_jitter = "0s"
+      precision = ""
+      debug = false
+      quiet = false
+      logfile = ""
+
+    # Output Plugin: InfluxDB v2
+    [[outputs.influxdb_v2]]
+      urls = ["http://influxdb-service:8086"]
+      token = "hydrosense-super-secret-auth-token-123"
+      organization = "hydrosense"
+      bucket = "river_water_quality"
+
+    # Input Plugin: MQTT Consumer
+    [[inputs.mqtt_consumer]]
+      servers = ["tcp://mosquitto-service:1883"]
+      topics = [
+        "water-quality/rivers/+/telemetry"
+      ]
+      qos = 1
+      client_id = "telegraf-river-subscriber"
+      data_format = "json_v2"
+
+      [[inputs.mqtt_consumer.topic_parsing]]
+        topic = "water-quality/rivers/+/telemetry"
+        measurement = "_/_/_/measurement"
+        tags = "_/_/riverId/_"
+
+      [[inputs.mqtt_consumer.json_v2]]
+        measurement_name = "river_water_quality"
+        [[inputs.mqtt_consumer.json_v2.object]]
+          path = "@this"
+          tags = ["deviceId", "riverId", "riverName"]
+          
+          [inputs.mqtt_consumer.json_v2.object.fields]
+            "telemetry_oxygenSaturationPct" = "float"
+            "telemetry_dissolvedOxygenMgl" = "float"
+            "telemetry_waterTempC" = "float"
+            "telemetry_ph" = "float"
+            "status_batteryPct" = "int"
+            "status_hypoxiaWarning" = "bool"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: hydrosense-iot
+data:
+  influxdb.yml: |
+    apiVersion: 1
+    datasources:
+      - name: InfluxDB_RiverQuality
+        type: influxdb
+        access: proxy
+        url: http://influxdb-service:8086
+        isDefault: true
+        jsonData:
+          version: Flux
+          organization: hydrosense
+          defaultBucket: river_water_quality
+        secureJsonData:
+          token: hydrosense-super-secret-auth-token-123
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  namespace: hydrosense-iot
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: 'River Water Quality Monitoring'
+        orgId: 1
+        folder: 'HydroSense IoT'
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /etc/grafana/provisioning/dashboards/json
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-river
+  namespace: hydrosense-iot
+data:
+  river_monitoring.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": true,
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 0,
+            "y": 0
+          },
+          "id": 1,
+          "title": "Current Oxygen Saturation (% Sat)",
+          "type": "gauge",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "InfluxDB_RiverQuality"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "InfluxDB_RiverQuality"
+              },
+              "query": "from(bucket: \"river_water_quality\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._field == \"telemetry_oxygenSaturationPct\")\n  |> last()",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "min": 0,
+              "max": 120,
+              "unit": "percent",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 50 },
+                  { "color": "green", "value": 75 }
+                ]
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 6,
+            "y": 0
+          },
+          "id": 2,
+          "title": "Dissolved Oxygen Concentration (mg/L)",
+          "type": "stat",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "InfluxDB_RiverQuality"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "InfluxDB_RiverQuality"
+              },
+              "query": "from(bucket: \"river_water_quality\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._field == \"telemetry_dissolvedOxygenMgl\")\n  |> last()",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "mg/L",
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 4.0 },
+                  { "color": "blue", "value": 7.0 }
+                ]
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 12,
+            "y": 0
+          },
+          "id": 3,
+          "title": "Water Temperature (°C)",
+          "type": "stat",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "InfluxDB_RiverQuality"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "InfluxDB_RiverQuality"
+              },
+              "query": "from(bucket: \"river_water_quality\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._field == \"telemetry_waterTempC\")\n  |> last()",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "celsius",
+              "color": { "mode": "palette-classic" }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 8,
+            "w": 6,
+            "x": 18,
+            "y": 0
+          },
+          "id": 4,
+          "title": "Water pH Level",
+          "type": "stat",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "InfluxDB_RiverQuality"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "InfluxDB_RiverQuality"
+              },
+              "query": "from(bucket: \"river_water_quality\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._field == \"telemetry_ph\")\n  |> last()",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "green", "value": 6.5 },
+                  { "color": "red", "value": 8.5 }
+                ]
+              }
+            },
+            "overrides": []
+          }
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 10,
+            "w": 24,
+            "x": 0,
+            "y": 8
+          },
+          "id": 5,
+          "title": "Oxygen Saturation Trend & Diurnal Cycle (% Saturation)",
+          "type": "timeseries",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "InfluxDB_RiverQuality"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "InfluxDB_RiverQuality"
+              },
+              "query": "from(bucket: \"river_water_quality\")\n  |> range(start: -6h)\n  |> filter(fn: (r) => r._field == \"telemetry_oxygenSaturationPct\")",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "smooth",
+                "fillOpacity": 15,
+                "thresholdsStyle": {
+                  "mode": "line"
+                }
+              },
+              "unit": "percent",
+              "min": 0,
+              "max": 120,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "yellow", "value": 50 }
+                ]
+              }
+            },
+            "overrides": []
+          }
+        }
+      ],
+      "refresh": "5s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["river", "water-quality", "iot", "oxygen"],
+      "time": {
+        "from": "now-1h",
+        "to": "now"
+      },
+      "title": "River Water Quality Monitoring Dashboard",
+      "uid": "river-water-quality-dashboard"
+    }

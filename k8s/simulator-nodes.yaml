@@ -1,0 +1,172 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: river-node-script
+  namespace: hydrosense-iot
+data:
+  index.js: |
+    const mqtt = require('mqtt');
+
+    const BROKER_URL = process.env.MQTT_BROKER_URL || 'tcp://mosquitto-service:1883';
+    const POD_NAME = process.env.POD_NAME || `node-${Math.random().toString(16).substring(2, 6)}`;
+    const RIVER_INDEX = parseInt(process.env.RIVER_INDEX || '0', 10);
+    const PUBLISH_INTERVAL_SECS = parseInt(process.env.INTERVAL_SECS || '5', 10);
+
+    const rivers = [
+      { id: 'thames-01', name: 'River Thames (London Node #1)', lat: 51.5074, lng: -0.1278 },
+      { id: 'severn-02', name: 'River Severn (Gloucester Node #2)', lat: 51.8642, lng: -2.2381 },
+      { id: 'trent-03', name: 'River Trent (Nottingham Node #3)', lat: 52.9548, lng: -1.1581 },
+      { id: 'mersey-04', name: 'River Mersey (Liverpool Node #4)', lat: 53.4084, lng: -2.9916 },
+      { id: 'tyne-05', name: 'River Tyne (Newcastle Node #5)', lat: 54.9783, lng: -1.6178 },
+      { id: 'clyde-06', name: 'River Clyde (Glasgow Node #6)', lat: 55.8642, lng: -4.2518 },
+      { id: 'avon-07', name: 'River Avon (Bristol Node #7)', lat: 51.4545, lng: -2.5879 },
+      { id: 'ouse-08', name: 'River Ouse (York Node #8)', lat: 53.9599, lng: -1.0873 }
+    ];
+
+    // Pick river based on pod name or index
+    const hash = POD_NAME.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const river = rivers[hash % rivers.length];
+    const CLIENT_ID = `k8s-${river.id}-${POD_NAME.slice(-5)}`;
+
+    const TELEMETRY_TOPIC = `water-quality/rivers/${river.id}/telemetry`;
+    const ALERT_TOPIC = `water-quality/rivers/${river.id}/alerts`;
+    const LWT_TOPIC = `water-quality/rivers/${river.id}/status`;
+
+    console.log(`[INIT] HydroSense Node starting: ${CLIENT_ID} for ${river.name}`);
+    console.log(`[INIT] Target Broker: ${BROKER_URL} | Interval: ${PUBLISH_INTERVAL_SECS}s`);
+
+    const client = mqtt.connect(BROKER_URL, {
+      clientId: CLIENT_ID,
+      keepalive: 60,
+      clean: true,
+      will: {
+        topic: LWT_TOPIC,
+        payload: JSON.stringify({ deviceId: CLIENT_ID, status: 'OFFLINE', timestamp: new Date().toISOString() }),
+        qos: 1,
+        retain: false
+      }
+    });
+
+    client.on('connect', () => {
+      console.log(`[CONNECTED] Connected to MQTT broker ${BROKER_URL}`);
+      client.publish(LWT_TOPIC, JSON.stringify({ deviceId: CLIENT_ID, status: 'ONLINE', timestamp: new Date().toISOString() }), { qos: 1 });
+      publishTelemetry();
+      setInterval(publishTelemetry, PUBLISH_INTERVAL_SECS * 1000);
+    });
+
+    client.on('error', (err) => console.error(`[ERROR] MQTT error: ${err.message}`));
+
+    function generateTelemetryPayload() {
+      const now = new Date();
+      const currentHour = now.getHours() + (now.getMinutes() / 60);
+      const diurnalFactor = Math.sin((currentHour - 8) * (Math.PI / 12));
+      const baseSat = 85 + (diurnalFactor * 12);
+      const randomNoise = (Math.random() - 0.5) * 4;
+      const oxygenSaturationPct = parseFloat(Math.max(20, Math.min(120, baseSat + randomNoise)).toFixed(1));
+
+      const waterTempC = parseFloat((15.0 + (diurnalFactor * 2.5) + ((Math.random() - 0.5) * 0.5)).toFixed(1));
+      const maxSolubility = 14.652 - (0.41022 * waterTempC) + (0.007991 * Math.pow(waterTempC, 2));
+      const dissolvedOxygenMgl = parseFloat(((oxygenSaturationPct / 100) * maxSolubility).toFixed(2));
+      const ph = parseFloat((7.35 + (diurnalFactor * 0.15) + ((Math.random() - 0.5) * 0.05)).toFixed(2));
+
+      return {
+        deviceId: CLIENT_ID,
+        riverId: river.id,
+        riverName: river.name,
+        location: {
+          latitude: river.lat,
+          longitude: river.lng
+        },
+        telemetry: {
+          oxygenSaturationPct: oxygenSaturationPct,
+          dissolvedOxygenMgl: dissolvedOxygenMgl,
+          waterTempC: waterTempC,
+          ph: ph
+        },
+        status: {
+          batteryPct: Math.floor(90 + Math.random() * 10),
+          hypoxiaWarning: oxygenSaturationPct < 50
+        },
+        timestamp: now.toISOString()
+      };
+    }
+
+    function publishTelemetry() {
+      const payload = generateTelemetryPayload();
+      client.publish(TELEMETRY_TOPIC, JSON.stringify(payload), { qos: 1 }, (err) => {
+        if (!err) {
+          console.log(`[PUBLISHED] ${river.id} -> O2 Sat: ${payload.telemetry.oxygenSaturationPct}%, DO: ${payload.telemetry.dissolvedOxygenMgl}mg/L`);
+        }
+      });
+
+      if (payload.telemetry.oxygenSaturationPct < 50) {
+        client.publish(ALERT_TOPIC, JSON.stringify({
+          alertType: 'HYPOXIA_CRITICAL_LOW_OXYGEN',
+          severity: 'CRITICAL',
+          riverName: payload.riverName,
+          oxygenSaturationPct: payload.telemetry.oxygenSaturationPct,
+          timestamp: payload.timestamp
+        }), { qos: 1 });
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: river-nodes-deployment
+  namespace: hydrosense-iot
+  labels:
+    app.kubernetes.io/name: river-nodes
+    app.kubernetes.io/component: iot-simulator
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: river-nodes
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: river-nodes
+        app.kubernetes.io/component: iot-simulator
+    spec:
+      initContainers:
+        - name: install-deps
+          image: node:18-alpine
+          command: ["sh", "-c", "npm install mqtt --prefix /app --no-audit --no-fund --silent"]
+          volumeMounts:
+            - name: app-deps
+              mountPath: /app
+      containers:
+        - name: node-publisher
+          image: node:18-alpine
+          command: ["node", "/app/index.js"]
+          env:
+            - name: NODE_PATH
+              value: "/app/node_modules"
+            - name: MQTT_BROKER_URL
+              value: "tcp://mosquitto-service:1883"
+            - name: INTERVAL_SECS
+              value: "5"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: app-deps
+              mountPath: /app
+            - name: script-volume
+              mountPath: /app/index.js
+              subPath: index.js
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+      volumes:
+        - name: app-deps
+          emptyDir: {}
+        - name: script-volume
+          configMap:
+            name: river-node-script
