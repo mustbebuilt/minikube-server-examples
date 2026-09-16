@@ -18,7 +18,8 @@ A production-grade Kubernetes and Minikube implementation of the HydroSense IoT 
 5. [Service Access and Endpoints](#service-access-and-endpoints)
 6. [Horizontal Scaling (N Servers and Nodes)](#horizontal-scaling-n-servers-and-nodes)
 7. [Testing with External Clients](#testing-with-external-clients)
-8. [Teardown and Cleanup](#teardown-and-cleanup)
+8. [Security Assessment and Hardening](#security-assessment-and-hardening)
+9. [Teardown and Cleanup](#teardown-and-cleanup)
 
 ---
 
@@ -270,6 +271,15 @@ MINIKUBE_IP=$(minikube ip) node simulate-nodes.js 10 2
    - `ws://<minikube-ip>:30901` (or `ws://localhost:9001` if running `./scripts/port-forward.sh`)
 3. Click **"Connect to Broker"**.
 4. Telemetry published from in-cluster or external nodes will stream live into the dashboard gauges and charts.
+
+---
+
+## Security Assessment and Hardening
+
+For detailed security analyses and hardening patterns:
+
+- **[SECURITY_ISSUES.md](file:///Users/martincooper/Documents/github-demo-sites-for-modules/minikube-server-examples/SECURITY_ISSUES.md)**: Thorough vulnerability assessment covering MQTT anonymous access, unencrypted network transports, super-admin token sharing, lack of Kubernetes NetworkPolicies, and default credentials.
+- **[SECURITY_SOLUTIONS.md](file:///Users/martincooper/Documents/github-demo-sites-for-modules/minikube-server-examples/SECURITY_SOLUTIONS.md)**: Concrete implementation patterns, configuration recipes, and defense-in-depth solutions for authentication, topic ACLs, mTLS, scoped InfluxDB tokens, OIDC SSO, and Kubernetes Pod Security Standards.
 
 ---
 
