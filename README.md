@@ -1,3 +1,8 @@
+
+> [!CAUTION]
+> Please complete the [basic MQQT] Lab (https://github.com/mustbebuilt/minikube-server-examples) before attempting this lab. 
+
+
 # HydroSense IoT - Kubernetes and Minikube Scalable Server Infrastructure
 
 A production-grade Kubernetes and Minikube implementation of the HydroSense IoT River Water Quality Monitoring System. This platform enables horizontal scaling across N server instances, subscriber ingestion agents, and edge simulation nodes with automated persistent storage, telemetry ingestion, and Grafana dashboard visualization.
@@ -6,20 +11,32 @@ A production-grade Kubernetes and Minikube implementation of the HydroSense IoT 
 
 ## Table of Contents
 
-1. [Key Concepts and Technologies](#key-concepts-and-technologies)
-   - [What is Minikube?](#what-is-minikube)
-   - [What is Kubernetes (K8s)?](#what-is-kubernetes-k8s)
-   - [Kubernetes Resource Types Used](#kubernetes-resource-types-used)
-   - [Role of the Bash Automation Scripts](#role-of-the-bash-automation-scripts)
-   - [IoT Telemetry Pipeline Architecture](#iot-telemetry-pipeline-architecture)
-2. [Architecture Overview](#architecture-overview)
-3. [Repository Layout](#repository-layout)
-4. [Quick Start](#quick-start)
-5. [Service Access and Endpoints](#service-access-and-endpoints)
-6. [Horizontal Scaling (N Servers and Nodes)](#horizontal-scaling-n-servers-and-nodes)
-7. [Testing with External Clients](#testing-with-external-clients)
-8. [Security Assessment and Hardening](#security-assessment-and-hardening)
-9. [Teardown and Cleanup](#teardown-and-cleanup)
+- [HydroSense IoT - Kubernetes and Minikube Scalable Server Infrastructure](#hydrosense-iot---kubernetes-and-minikube-scalable-server-infrastructure)
+  - [Table of Contents](#table-of-contents)
+  - [Key Concepts and Technologies](#key-concepts-and-technologies)
+    - [What is Minikube?](#what-is-minikube)
+    - [What is Kubernetes (K8s)?](#what-is-kubernetes-k8s)
+    - [Kubernetes Resource Types Used](#kubernetes-resource-types-used)
+    - [Role of the Bash Automation Scripts](#role-of-the-bash-automation-scripts)
+    - [IoT Telemetry Pipeline Architecture](#iot-telemetry-pipeline-architecture)
+  - [Architecture Overview](#architecture-overview)
+  - [Repository Layout](#repository-layout)
+  - [Quick Start](#quick-start)
+    - [Prerequisites](#prerequisites)
+    - [1. Deploy the Complete Stack](#1-deploy-the-complete-stack)
+  - [Service Access and Endpoints](#service-access-and-endpoints)
+    - [Launch Grafana in Web Browser](#launch-grafana-in-web-browser)
+    - [Local Port Forwarding Helper](#local-port-forwarding-helper)
+  - [Horizontal Scaling (N Servers and Nodes)](#horizontal-scaling-n-servers-and-nodes)
+    - [1. Scale Simulated IoT River Nodes](#1-scale-simulated-iot-river-nodes)
+    - [2. Scale Telegraf Telemetry Ingestion Workers](#2-scale-telegraf-telemetry-ingestion-workers)
+    - [3. Scale MQTT Brokers or Grafana Servers](#3-scale-mqtt-brokers-or-grafana-servers)
+    - [4. Inspect Current Status](#4-inspect-current-status)
+  - [Testing with External Clients](#testing-with-external-clients)
+    - [1. Headless Node.js Multi-Node Client (Outside Cluster)](#1-headless-nodejs-multi-node-client-outside-cluster)
+    - [2. Browser Web Client](#2-browser-web-client)
+  - [Security Assessment and Hardening](#security-assessment-and-hardening)
+  - [Teardown and Cleanup](#teardown-and-cleanup)
 
 ---
 
