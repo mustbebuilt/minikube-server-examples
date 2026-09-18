@@ -1,7 +1,5 @@
-
 > [!CAUTION]
-> Please complete the [basic MQQT] Lab (https://github.com/mustbebuilt/minikube-server-examples) before attempting this lab. 
-
+> Please complete the [basic MQTT] Lab (https://github.com/mustbebuilt/mqtt-client) before attempting this lab.
 
 # HydroSense IoT - Kubernetes and Minikube Scalable Server Infrastructure
 
@@ -44,7 +42,7 @@ A production-grade Kubernetes and Minikube implementation of the HydroSense IoT 
 
 ### What is Minikube?
 
-Minikube is an open-source tool developed by the Kubernetes community that provisions a local Kubernetes cluster on a developer's workstation. 
+Minikube is an open-source tool developed by the Kubernetes community that provisions a local Kubernetes cluster on a developer's workstation.
 
 - **Local Virtualization / Containerization**: Rather than requiring a costly multi-node cloud environment (such as Google GKE, AWS EKS, or Azure AKS), Minikube runs a complete Kubernetes control plane and worker runtime inside a local Docker container or lightweight virtual machine.
 - **Development-to-Production Parity**: Minikube uses standard upstream Kubernetes APIs. Any manifest (`.yaml`), Deployment, Service, or ConfigMap tested in Minikube can be deployed to production enterprise clusters with minimal configuration changes.
@@ -55,7 +53,8 @@ Minikube is an open-source tool developed by the Kubernetes community that provi
 Kubernetes is an orchestration platform designed to automate the deployment, scaling, networking, and management of containerized applications.
 
 In traditional container environments (like standalone Docker or Docker Compose), containers run as fixed, host-bound processes. If a container crashes, runs out of memory, or requires horizontal scaling across multiple instances, manual intervention is needed. Kubernetes solves this by:
-- **Declarative Desired State**: You declare *what* the system should look like (e.g., "maintain 5 running replicas of the river node simulator"), and the Kubernetes controller constantly works to match actual state with desired state.
+
+- **Declarative Desired State**: You declare _what_ the system should look like (e.g., "maintain 5 running replicas of the river node simulator"), and the Kubernetes controller constantly works to match actual state with desired state.
 - **Self-Healing**: If a pod crashes or becomes unresponsive, Kubernetes automatically restarts or replaces it on a healthy node.
 - **Service Discovery and Internal Load Balancing**: Kubernetes assigns stable internal DNS names and virtual IPs to services, distributing traffic across all healthy pod replicas.
 
@@ -91,6 +90,7 @@ The project includes shell scripts in `scripts/` to automate operational tasks:
 ### IoT Telemetry Pipeline Architecture
 
 The data pipeline operates as follows:
+
 1. **Edge Simulator Nodes**: Simulated IoT river nodes publish JSON telemetry payloads (dissolved oxygen, water temperature, pH, battery status) over MQTT topics (`water-quality/rivers/{river_id}/telemetry`).
 2. **Mosquitto MQTT Broker**: Ingests high-frequency telemetry over TCP (`1883`) and WebSockets (`9001`).
 3. **Telegraf Ingestion Workers**: Subscribes to wildcard MQTT topics (`water-quality/rivers/+/telemetry`), parses incoming JSON metrics, applies tags, and writes structured records into InfluxDB.
@@ -175,17 +175,21 @@ minikube-server-examples/
 ## Quick Start
 
 ### Prerequisites
+
 - [Minikube](https://minikube.sigs.k8s.io/docs/start/) installed
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) installed
 - [Docker](https://docs.docker.com/get-docker/) installed
 
 ### 1. Deploy the Complete Stack
+
 Run the automated deployment script:
+
 ```bash
 ./scripts/deploy.sh
 ```
 
 The script executes the following stages:
+
 1. Verifies that Minikube is running (initiates `minikube start` if stopped).
 2. Provisions the `hydrosense-iot` namespace.
 3. Applies all ConfigMaps, Secrets, PVCs, Services, and Deployments.
@@ -196,25 +200,30 @@ The script executes the following stages:
 
 ## Service Access and Endpoints
 
-| Service | Protocol / Port | Minikube NodePort | Port-Forward (Localhost) |
-|---|---|---|---|
-| **Grafana Dashboard** | HTTP / `3000` | `http://<minikube-ip>:30300` | `http://localhost:3000` |
-| **MQTT Broker (TCP)** | TCP / `1883` | `<minikube-ip>:31883` | `localhost:1883` |
-| **MQTT WebSockets** | WS / `9001` | `ws://<minikube-ip>:30901` | `ws://localhost:9001` |
-| **InfluxDB v2** | HTTP / `8086` | ClusterIP (Internal) | `http://localhost:8086` |
+| Service               | Protocol / Port | Minikube NodePort            | Port-Forward (Localhost) |
+| --------------------- | --------------- | ---------------------------- | ------------------------ |
+| **Grafana Dashboard** | HTTP / `3000`   | `http://<minikube-ip>:30300` | `http://localhost:3000`  |
+| **MQTT Broker (TCP)** | TCP / `1883`    | `<minikube-ip>:31883`        | `localhost:1883`         |
+| **MQTT WebSockets**   | WS / `9001`     | `ws://<minikube-ip>:30901`   | `ws://localhost:9001`    |
+| **InfluxDB v2**       | HTTP / `8086`   | ClusterIP (Internal)         | `http://localhost:8086`  |
 
 Authentication Credentials:
+
 - **Grafana**: User `admin` / Password `admin`
 - **InfluxDB**: User `admin` / Password `adminpassword123` / Org `hydrosense` / Bucket `river_water_quality`
 
 ### Launch Grafana in Web Browser
+
 To open Grafana directly via Minikube's built-in service tunnel:
+
 ```bash
 minikube service grafana-service -n hydrosense-iot
 ```
 
 ### Local Port Forwarding Helper
+
 To forward all cluster ports to `localhost` on the host machine:
+
 ```bash
 ./scripts/port-forward.sh
 ```
@@ -226,7 +235,9 @@ To forward all cluster ports to `localhost` on the host machine:
 The platform supports dynamic horizontal scalability. You can scale server ingestion workers, broker instances, dashboard servers, or simulated IoT nodes using `./scripts/scale.sh` or standard `kubectl scale` commands:
 
 ### 1. Scale Simulated IoT River Nodes
+
 Scale the number of in-cluster IoT river sensor nodes publishing real-time telemetry:
+
 ```bash
 # Scale to 10 simulated sensor nodes
 ./scripts/scale.sh nodes 10
@@ -239,13 +250,16 @@ Scale the number of in-cluster IoT river sensor nodes publishing real-time telem
 ```
 
 ### 2. Scale Telegraf Telemetry Ingestion Workers
+
 Scale the number of Telegraf subscriber workers handling high-throughput MQTT ingestion:
+
 ```bash
 # Scale to 3 ingestion workers
 ./scripts/scale.sh telegraf 3
 ```
 
 ### 3. Scale MQTT Brokers or Grafana Servers
+
 ```bash
 # Scale Mosquitto brokers
 ./scripts/scale.sh mosquitto 2
@@ -255,10 +269,13 @@ Scale the number of Telegraf subscriber workers handling high-throughput MQTT in
 ```
 
 ### 4. Inspect Current Status
+
 ```bash
 ./scripts/scale.sh status
 ```
+
 Or query via `kubectl`:
+
 ```bash
 kubectl get deployments -n hydrosense-iot
 kubectl get pods -n hydrosense-iot -o wide
@@ -269,6 +286,7 @@ kubectl get pods -n hydrosense-iot -o wide
 ## Testing with External Clients
 
 ### 1. Headless Node.js Multi-Node Client (Outside Cluster)
+
 You can run simulated IoT nodes directly on your host machine targeting the Minikube cluster:
 
 ```bash
@@ -283,6 +301,7 @@ MINIKUBE_IP=$(minikube ip) node simulate-nodes.js 10 2
 ```
 
 ### 2. Browser Web Client
+
 1. Open `client/web/index.html` in your browser.
 2. Under **MQTT Broker Target & Connection Settings**, set the target broker URL:
    - `ws://<minikube-ip>:30901` (or `ws://localhost:9001` if running `./scripts/port-forward.sh`)
@@ -303,11 +322,13 @@ For detailed security analyses and hardening patterns:
 ## Teardown and Cleanup
 
 To remove all deployed resources and persistent volume claims from Minikube:
+
 ```bash
 ./scripts/teardown.sh
 ```
 
 To stop the local Minikube cluster:
+
 ```bash
 minikube stop
 ```
